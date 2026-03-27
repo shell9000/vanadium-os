@@ -1,432 +1,812 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="zh-HK">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VVAI Audio Player</title>
+<title>Vanadium OS</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body {
-  background: #1e1e22;
-  color: #c0c0cc;
-  font-family: 'SF Pro Display', -apple-system, 'Noto Serif CJK HK', 'Noto Sans CJK HK', 'WenQuanYi Micro Hei', sans-serif;
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0d0d0d;--bg2:#141414;--bg3:#1c1c1c;--bg4:#242424;
+  --gold:#b8975a;--gold2:#d4b06a;--white:#f0ece4;--dim:#777;--dim2:#444;
+  --green:#4caf72;--red:#e05555;--border:#2a2a2a;
+  --radius:10px;
 }
+html,body{height:100%;background:var(--bg);color:var(--white);font-family:'Inter',sans-serif;overflow:hidden}
+.app{display:flex;height:100vh}
 
-/* Background ambient glow from cover */
-.ambient {
-  position: fixed;
-  top: -20%; left: -20%;
-  width: 140%; height: 140%;
-  background: radial-gradient(ellipse at 50% 40%, rgba(38,209,217,0.08) 0%, transparent 60%);
-  pointer-events: none;
-  z-index: 0;
-}
+/* ── Sidebar ── */
+.sidebar{width:240px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0}
+.logo{padding:1.4rem 1.2rem;display:flex;align-items:center;gap:.7rem;border-bottom:1px solid var(--border)}
+.logo-icon{width:32px;height:32px}
+.logo-text{font-size:.8rem;letter-spacing:.18em;text-transform:uppercase;color:var(--gold);font-weight:500}
+.nav{padding:.8rem 0}
+.nav-btn{width:100%;display:flex;align-items:center;gap:.8rem;padding:.7rem 1.2rem;background:none;border:none;color:var(--dim);font-size:.85rem;cursor:pointer;transition:.2s;border-left:2px solid transparent;font-family:inherit}
+.nav-btn:hover{color:var(--white);background:var(--bg3)}
+.nav-btn.active{color:var(--gold);border-left-color:var(--gold);background:rgba(184,151,90,.08)}
+.nav-btn svg{width:17px;height:17px;flex-shrink:0}
+.sidebar-section{padding:.4rem 1.2rem;font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--dim2);margin-top:.8rem}
+.queue-scroll{flex:1;overflow-y:auto}
+.queue-scroll::-webkit-scrollbar{width:3px}
+.queue-scroll::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.q-item{display:flex;align-items:center;gap:.7rem;padding:.55rem 1.2rem;cursor:pointer;transition:.15s}
+.q-item:hover{background:var(--bg3)}
+.q-item.active{background:rgba(184,151,90,.1)}
+.q-num{width:18px;font-size:.7rem;color:var(--dim2);text-align:center;flex-shrink:0}
+.q-info{flex:1;overflow:hidden}
+.q-title{font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.q-artist{font-size:.7rem;color:var(--dim)}
+.q-dur{font-size:.7rem;color:var(--dim2);flex-shrink:0}
 
-.player {
-  position: relative;
-  z-index: 1;
-  width: 380px;
-  background: #1e1e22;
-  border-radius: 32px;
-  padding: 36px 32px 32px;
-  box-shadow: 16px 16px 40px #111114, -16px -16px 40px #2b2b30;
-}
+/* ── Content ── */
+.content{flex:1;display:flex;flex-direction:column;overflow:hidden}
 
-/* Cover Art */
-.cover-wrap {
-  position: relative;
-  width: 240px;
-  height: 240px;
-  margin: 0 auto 28px;
-}
-.cover {
-  width: 100%; height: 100%;
-  border-radius: 24px;
-  background: linear-gradient(135deg, #1a3a3b, #0d1a1b);
-  box-shadow: 10px 10px 25px #111114, -10px -10px 25px #2b2b30, 0 0 40px rgba(38,209,217,0.15);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 80px;
-  overflow: hidden;
-}
-.cover img {
-  width: 100%; height: 100%;
-  object-fit: cover;
-  border-radius: 24px;
-}
-.cover-vinyl {
-  position: absolute;
-  right: -30px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 120px; height: 120px;
-  border-radius: 50%;
-  background: repeating-radial-gradient(circle, #111114 0px, #1a1a1e 3px, #111114 4px);
-  box-shadow: 4px 4px 12px #111114;
-  opacity: 0.6;
-  animation: spin 8s linear infinite;
-  animation-play-state: running;
-}
-.cover-vinyl::after {
-  content: '';
-  position: absolute;
-  top: 50%; left: 50%;
-  transform: translate(-50%,-50%);
-  width: 20px; height: 20px;
-  border-radius: 50%;
-  background: #26d1d9;
-  box-shadow: 0 0 10px rgba(38,209,217,0.6);
-}
-@keyframes spin { from { transform: translateY(-50%) rotate(0deg); } to { transform: translateY(-50%) rotate(360deg); } }
+/* ── Player View ── */
+.player-view{flex:1;display:flex;overflow:hidden}
+.now-playing{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2.5rem;position:relative;overflow:hidden}
+.bg-art{position:absolute;inset:0;background-size:cover;background-position:center;filter:blur(80px) brightness(.25) saturate(1.5);transform:scale(1.3);transition:background-image .8s;z-index:0}
+.cover-container{position:relative;z-index:1;margin-bottom:1.8rem}
+.cover-art{width:280px;height:280px;border-radius:16px;object-fit:cover;box-shadow:0 24px 80px rgba(0,0,0,.8);background:var(--bg3);display:flex;align-items:center;justify-content:center}
+.cover-art img{width:100%;height:100%;border-radius:16px;object-fit:cover}
+.cover-placeholder{color:var(--dim2)}
+.cover-placeholder svg{width:72px;height:72px}
+.track-meta{position:relative;z-index:1;text-align:center;max-width:400px}
+.track-title{font-size:1.3rem;font-weight:600;margin-bottom:.35rem;line-height:1.3}
+.track-artist{font-size:.95rem;color:var(--gold);margin-bottom:.2rem}
+.track-album{font-size:.8rem;color:var(--dim)}
 
-/* Track Info */
-.track-info {
-  text-align: center;
-  margin-bottom: 24px;
-}
-.track-title {
-  font-size: 20px;
-  font-weight: 700;
-  color: #e8e8f0;
-  margin-bottom: 6px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.track-artist {
-  font-size: 14px;
-  color: #26d1d9;
-  margin-bottom: 4px;
-}
-.track-album {
-  font-size: 12px;
-  color: #666;
-}
+/* Library Panel */
+.lib-panel{width:360px;background:var(--bg2);border-left:1px solid var(--border);display:flex;flex-direction:column}
+.lib-panel.hidden{display:none}
+.panel-head{padding:1rem 1.2rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.6rem}
+.panel-head h3{font-size:.8rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);flex:1}
+.search-box{padding:.6rem 1.2rem;border-bottom:1px solid var(--border)}
+.search-box input{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:.45rem .75rem;color:var(--white);font-size:.82rem;outline:none;font-family:inherit}
+.search-box input:focus{border-color:var(--gold)}
+.search-box input::placeholder{color:var(--dim2)}
+.lib-list{flex:1;overflow-y:auto}
+.lib-list::-webkit-scrollbar{width:3px}
+.lib-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.lib-item{display:flex;align-items:center;gap:.7rem;padding:.6rem 1.2rem;cursor:pointer;transition:.15s;border-bottom:1px solid rgba(255,255,255,.02)}
+.lib-item:hover{background:var(--bg3)}
+.lib-icon{width:32px;height:32px;background:var(--bg4);border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--dim)}
+.lib-icon svg{width:16px;height:16px}
+.lib-info{flex:1;overflow:hidden}
+.lib-name{font-size:.82rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lib-sub{font-size:.72rem;color:var(--dim)}
 
-/* Source Badge */
-.source-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: #1e1e22;
-  border-radius: 20px;
-  padding: 4px 12px;
-  font-size: 11px;
-  color: #26d1d9;
-  box-shadow: 3px 3px 7px #111114, -3px -3px 7px #2b2b30;
-  margin-top: 8px;
-}
-.source-dot {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: #26d1d9;
-  box-shadow: 0 0 6px rgba(38,209,217,0.8);
-  animation: pulse 2s ease-in-out infinite;
-}
-@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+/* ── Player Bar ── */
+.player-bar{background:var(--bg2);border-top:1px solid var(--border);padding:.8rem 1.5rem;display:flex;flex-direction:column;gap:.6rem;flex-shrink:0}
+.progress-row{display:flex;align-items:center;gap:.7rem}
+.time-label{font-size:.72rem;color:var(--dim);width:36px;flex-shrink:0}
+.time-label.r{text-align:right}
+.progress-track{flex:1;height:3px;background:var(--bg4);border-radius:2px;cursor:pointer;position:relative}
+.progress-track:hover{height:5px;margin:-1px 0}
+.progress-fill{height:100%;background:var(--gold);border-radius:2px}
+.controls-row{display:flex;align-items:center}
+.ctrl-left{display:flex;align-items:center;gap:.5rem;flex:1}
+.ctrl-center{display:flex;align-items:center;gap:.8rem}
+.ctrl-right{display:flex;align-items:center;gap:.5rem;flex:1;justify-content:flex-end}
+.cbtn{background:none;border:none;color:var(--dim);cursor:pointer;padding:.35rem;border-radius:6px;transition:.2s;display:flex;align-items:center;justify-content:center}
+.cbtn:hover{color:var(--white)}
+.cbtn.on{color:var(--gold)}
+.cbtn svg{width:18px;height:18px}
+.cbtn-main{background:var(--gold);color:#000;width:40px;height:40px;border-radius:50%;padding:0}
+.cbtn-main:hover{background:var(--gold2);color:#000;transform:scale(1.05)}
+.cbtn-main svg{width:20px;height:20px}
+.cbtn-lg svg{width:22px;height:22px}
+.mini-cover{width:38px;height:38px;border-radius:6px;object-fit:cover;background:var(--bg3);flex-shrink:0}
+.mini-info .t{font-size:.8rem;font-weight:500}
+.mini-info .a{font-size:.72rem;color:var(--dim)}
+.vol-row{display:flex;align-items:center;gap:.4rem}
+.vol-slider{width:72px;height:3px;appearance:none;background:var(--bg4);border-radius:2px;cursor:pointer;outline:none}
+.vol-slider::-webkit-slider-thumb{appearance:none;width:11px;height:11px;background:var(--gold);border-radius:50%;cursor:pointer}
 
-/* Progress */
-.progress-section {
-  margin-bottom: 24px;
-}
-.progress-track {
-  height: 4px;
-  border-radius: 4px;
-  background: #1e1e22;
-  box-shadow: inset 2px 2px 4px #111114, inset -2px -2px 4px #2b2b30;
-  cursor: pointer;
-  margin-bottom: 8px;
-  position: relative;
-}
-.progress-fill {
-  height: 100%;
-  border-radius: 4px;
-  background: linear-gradient(90deg, #1aacb3, #26d1d9);
-  box-shadow: 0 0 8px rgba(38,209,217,0.4);
-  width: 35%;
-  position: relative;
-  transition: width 0.5s linear;
-}
-.progress-fill::after {
-  content: '';
-  position: absolute;
-  right: -6px; top: -4px;
-  width: 12px; height: 12px;
-  border-radius: 50%;
-  background: #26d1d9;
-  box-shadow: 0 0 8px rgba(38,209,217,0.8);
-}
-.time-labels {
-  display: flex;
-  justify-content: space-between;
-  font-size: 11px;
-  color: #666;
-}
-
-/* Controls */
-.controls {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-  margin-bottom: 28px;
-}
-.btn-ctrl {
-  border: none;
-  background: #1e1e22;
-  color: #c0c0cc;
-  cursor: pointer;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.15s;
-}
-.btn-ctrl:hover { color: #26d1d9; }
-.btn-ctrl:active { box-shadow: inset 2px 2px 6px #111114, inset -2px -2px 6px #2b2b30 !important; }
-.btn-sm {
-  width: 44px; height: 44px;
-  font-size: 18px;
-  box-shadow: 4px 4px 10px #111114, -4px -4px 10px #2b2b30;
-}
-.btn-play {
-  width: 68px; height: 68px;
-  font-size: 26px;
-  background: linear-gradient(145deg, #22c5cd, #1aacb3);
-  color: #0d1a1b !important;
-  box-shadow: 6px 6px 14px #111114, -6px -6px 14px #2b2b30, 0 0 24px rgba(38,209,217,0.3);
-}
-.btn-play:hover {
-  box-shadow: 6px 6px 14px #111114, -6px -6px 14px #2b2b30, 0 0 36px rgba(38,209,217,0.5) !important;
-}
-
-/* Volume */
-.volume-section {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.vol-icon { font-size: 16px; color: #666; }
-input[type=range] {
-  -webkit-appearance: none;
-  flex: 1;
-  height: 4px;
-  border-radius: 4px;
-  background: #1e1e22;
-  box-shadow: inset 2px 2px 4px #111114, inset -2px -2px 4px #2b2b30;
-  outline: none;
-  cursor: pointer;
-}
-input[type=range]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 18px; height: 18px;
-  border-radius: 50%;
-  background: #1e1e22;
-  box-shadow: 2px 2px 6px #111114, -2px -2px 6px #2b2b30;
-  border: 2px solid #26d1d9;
-}
-.vol-val { font-size: 12px; color: #26d1d9; width: 32px; text-align: right; }
-
-/* Quality Badge */
-.quality {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  margin-top: 20px;
-}
-.q-badge {
-  font-size: 10px;
-  padding: 3px 8px;
-  border-radius: 8px;
-  background: #1e1e22;
-  box-shadow: 2px 2px 5px #111114, -2px -2px 5px #2b2b30;
-  color: #666;
-  letter-spacing: 0.5px;
-}
-.q-badge.active { color: #26d1d9; }
+/* ── Settings View ── */
+.settings-view{flex:1;overflow-y:auto;padding:2rem;display:none}
+.settings-view.active{display:block}
+.settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;max-width:900px}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:1.5rem}
+.card-title{font-size:.75rem;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin-bottom:1.2rem;display:flex;align-items:center;gap:.5rem}
+.card-title svg{width:15px;height:15px}
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.stat-item .label{font-size:.72rem;color:var(--dim);margin-bottom:.3rem}
+.stat-item .value{font-size:1.4rem;font-weight:600;color:var(--gold)}
+.stat-item .unit{font-size:.75rem;color:var(--dim)}
+.svc-list{display:flex;flex-direction:column;gap:.8rem}
+.svc-item{display:flex;align-items:center;gap:.8rem;padding:.8rem;background:var(--bg3);border-radius:8px}
+.svc-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.svc-dot.on{background:var(--green);box-shadow:0 0 6px var(--green)}
+.svc-dot.off{background:var(--dim2)}
+.svc-name{flex:1;font-size:.85rem}
+.svc-status{font-size:.72rem;color:var(--dim)}
+.toggle-btn{background:none;border:1px solid var(--border);border-radius:6px;padding:.3rem .7rem;font-size:.72rem;color:var(--dim);cursor:pointer;transition:.2s;font-family:inherit}
+.toggle-btn:hover{border-color:var(--gold);color:var(--gold)}
+.toggle-btn.stop{border-color:var(--red);color:var(--red)}
+.disk-list{display:flex;flex-direction:column;gap:.6rem}
+.disk-item{padding:.8rem;background:var(--bg3);border-radius:8px}
+.disk-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem}
+.disk-dev{font-size:.8rem;font-weight:500}
+.disk-mp{font-size:.72rem;color:var(--dim)}
+.disk-bar{height:3px;background:var(--bg4);border-radius:2px}
+.disk-bar-fill{height:100%;background:var(--gold);border-radius:2px}
+.disk-info{display:flex;justify-content:space-between;margin-top:.3rem;font-size:.7rem;color:var(--dim)}
+.full-width{grid-column:1/-1}
 </style>
 </head>
 <body>
-<div class="ambient"></div>
+<div class="app">
 
-<div class="player">
-  <!-- Cover -->
-  <div class="cover-wrap">
-    <div class="cover">🎵</div>
-    <div class="cover-vinyl" id="vinyl"></div>
+<!-- Sidebar -->
+<aside class="sidebar">
+  <div class="logo">
+    <svg class="logo-icon" viewBox="0 0 32 32" fill="none">
+      <circle cx="16" cy="16" r="15" stroke="#b8975a" stroke-width="1.2"/>
+      <circle cx="16" cy="16" r="8" stroke="#b8975a" stroke-width="1" opacity=".4"/>
+      <circle cx="16" cy="16" r="2.5" fill="#b8975a"/>
+    </svg>
+    <span class="logo-text">Vanadium OS</span>
   </div>
+  <nav class="nav">
+    <button class="nav-btn active" onclick="setView('player')">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg>正在播放
+    </button>
+    <button class="nav-btn" onclick="setView('library')">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg>音樂庫
+    </button>
+    <button class="nav-btn" onclick="setView('settings')">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7 7 0 0 0-1.62-.94l-.36-2.54A.484.484 0 0 0 14 2h-3.84a.484.484 0 0 0-.48.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.48.48 0 0 0-.59.22L3.8 8.27a.47.47 0 0 0 .12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.27.41.49.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 onclick="switchSidebar('library')">音樂庫</div>
+        </div>
+        <div class="search-wrap" id="searchWrap" style="display:none">
+          <input class="search-input" type="text" placeholder="搜索..." id="searchInput" oninput="doSearch(this.value)">
+        </div>
+        <div id="breadcrumbWrap" style="display:none"></div>
+        <div class="sidebar-list" id="sidebarList"></div>
+      </div>
 
-  <!-- Track Info -->
-  <div class="track-info">
-    <div class="track-title" id="title">情人的眼淚</div>
-    <div class="track-artist" id="artist">蔡琴</div>
-    <div class="track-album" id="album">金片子</div>
-    <div class="source-badge">
-      <div class="source-dot"></div>
-      <span>Roon · FLAC 24bit/96kHz</span>
+      <!-- Now Playing -->
+      <div class="now-playing">
+        <div class="np-bg" id="npBg"></div>
+        <div class="np-content">
+          <div class="cover-container" id="coverContainer">
+            <div class="cover-placeholder"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg></div>
+          </div>
+          <div class="np-info">
+            <div class="np-title" id="npTitle">未選擇歌曲</div>
+            <div class="np-artist" id="npArtist">—</div>
+            <div class="np-album" id="npAlbum"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings View -->
+    <div class="settings-view" id="settingsView">
+
+      <!-- System Stats -->
+      <div class="settings-section">
+        <div class="ss-header">系統狀態</div>
+        <div class="ss-body">
+          <div class="stat-grid">
+            <div class="stat-card"><div class="stat-label">CPU 使用率</div><div class="stat-value" id="sCpu">—</div></div>
+            <div class="stat-card"><div class="stat-label">記憶體使用率</div><div class="stat-value" id="sMem">—</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Services -->
+      <div class="settings-section">
+        <div class="ss-header">服務管理</div>
+        <div class="ss-body" id="servicesBody">
+          <div class="service-row" id="svc-mpd">
+            <div class="svc-info"><div class="svc-dot" id="dot-mpd"></div><div><div class="svc-name">MPD</div><div class="svc-desc">Music Player Daemon</div></div></div>
+            <button class="svc-toggle" id="btn-mpd" onclick="toggleService('mpd')">—</button>
+          </div>
+          <div class="service-row" id="svc-roon">
+            <div class="svc-info"><div class="svc-dot" id="dot-roon"></div><div><div class="svc-name">Roon Bridge</div><div class="svc-desc">Roon 音樂串流</div></div></div>
+            <button class="svc-toggle" id="btn-roon" onclick="toggleService('roon')">—</button>
+          </div>
+          <div class="service-row" id="svc-diretta">
+            <div class="svc-info"><div class="svc-dot" id="dot-diretta"></div><div><div class="svc-name">Diretta</div><div class="svc-desc">Diretta Host</div></div></div>
+            <button class="svc-toggle" id="btn-diretta" onclick="toggleService('diretta')">—</button>
+          </div>
+          <div class="service-row" id="svc-naa">
+            <div class="svc-info"><div class="svc-dot" id="dot-naa"></div><div><div class="svc-name">NAA</div><div class="svc-desc">Network Audio Adapter</div></div></div>
+            <button class="svc-toggle" id="btn-naa" onclick="toggleService('naa')">—</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Disks -->
+      <div class="settings-section">
+        <div class="ss-header">儲存裝置</div>
+        <div class="ss-body" id="disksBody"><div style="color:var(--dim);font-size:0.85rem;">載入中...</div></div>
+      </div>
+
     </div>
   </div>
 
-  <!-- Progress -->
-  <div class="progress-section">
-    <div class="progress-track" onclick="seek(event)">
-      <div class="progress-fill" id="progress"></div>
+  <!-- Player Bar -->
+  <div class="player-bar">
+    <div class="progress-row">
+      <span class="ptime" id="ptimeElapsed">0:00</span>
+      <div class="pbar" id="pbar" onclick="seekTo(event)">
+        <div class="pbar-fill" id="pbarFill" style="width:0%"></div>
+      </div>
+      <span class="ptime r" id="ptimeDuration">0:00</span>
     </div>
-    <div class="time-labels">
-      <span id="cur-time">1:24</span>
-      <span id="tot-time">4:02</span>
+    <div class="ctrl-row">
+      <div class="ctrl-left">
+        <img class="mini-art" id="miniArt" src="" style="display:none" onerror="this.style.display='none'">
+        <div class="mini-info">
+          <div class="mini-t" id="miniTitle">—</div>
+          <div class="mini-a" id="miniArtist"></div>
+        </div>
+      </div>
+      <div class="ctrl-center">
+        <button class="cbtn" id="btnRandom" onclick="toggleRandom()" title="隨機">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
+        </button>
+        <button class="cbtn cbtn-lg" onclick="apiCall('POST','/prev')" title="上一首">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
+        </button>
+        <button class="cbtn cbtn-play" id="btnPlay" onclick="togglePlay()">
+          <svg id="icoPlay" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          <svg id="icoPause" viewBox="0 0 24 24" fill="currentColor" style="display:none"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+        </button>
+        <button class="cbtn cbtn-lg" onclick="apiCall('POST','/next')" title="下一首">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6h2v12h-2z"/></svg>
+        </button>
+        <button class="cbtn" id="btnRepeat" onclick="toggleRepeat()" title="重複">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>
+        </button>
+      </div>
+      <div class="ctrl-right">
+        <button class="cbtn" onclick="toggleMute()" title="靜音">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+        </button>
+        <div class="vol-wrap">
+          <input type="range" class="vol-slider" id="volSlider" min="0" max="100" value="50" oninput="setVolume(this.value)">
+        </div>
+      </div>
     </div>
   </div>
 
-  <!-- Controls -->
-  <div class="controls">
-    <button class="btn-ctrl btn-sm" onclick="prev()">⏮</button>
-    <button class="btn-ctrl btn-sm" onclick="toggleShuffle()" id="btn-shuffle" style="font-size:16px">🔀</button>
-    <button class="btn-ctrl btn-play" onclick="togglePlay()" id="btn-play">⏸</button>
-    <button class="btn-ctrl btn-sm" onclick="toggleRepeat()" id="btn-repeat" style="font-size:16px">🔁</button>
-    <button class="btn-ctrl btn-sm" onclick="next()">⏭</button>
+</div>
+<script>
+const API='http://192.168.0.220:8080/api';
+let state={playing:false,elapsed:0,duration:0,volume:50,repeat:false,random:false,title:'',artist:'',album:'',file:''};
+let libPath=[];let muted=false;let lastVol=50;let sidebarMode='queue';
+
+async function apiCall(method,path,body){
+  try{
+    const r=await fetch(API+path,{method,headers:{'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
+    return await r.json();
+  }catch(e){return null;}
+}
+
+function fmt(s){s=Math.floor(s||0);return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');}
+
+async function refreshStatus(){
+  const s=await apiCall('GET','/status');if(!s)return;
+  state={...state,...s};
+  const playing=s.state==='play';
+  document.getElementById('icoPlay').style.display=playing?'none':'block';
+  document.getElementById('icoPause').style.display=playing?'block':'none';
+  document.getElementById('npTitle').textContent=s.title||'未選擇歌曲';
+  document.getElementById('npArtist').textContent=s.artist||'—';
+  document.getElementById('npAlbum').textContent=s.album||'';
+  document.getElementById('miniTitle').textContent=s.title||'—';
+  document.getElementById('miniArtist').textContent=s.artist||'';
+  const pct=s.duration>0?(s.elapsed/s.duration*100):0;
+  document.getElementById('pbarFill').style.width=Math.min(pct,100)+'%';
+  document.getElementById('ptimeElapsed').textContent=fmt(s.elapsed);
+  document.getElementById('ptimeDuration').textContent=fmt(s.duration);
+  document.getElementById('volSlider').value=s.volume;
+  document.getElementById('btnRepeat').classList.toggle('active',s.repeat);
+  document.getElementById('btnRandom').classList.toggle('active',s.random);
+  if(s.file){
+    const dir=s.file.split('/').slice(0,-1).join('/');
+    const cu=API+'/cover?path='+encodeURIComponent(dir);
+    document.getElementById('npBg').style.backgroundImage=`url('${cu}')`;
+    document.getElementById('coverContainer').innerHTML=`<img src="${cu}" onerror="this.parentElement.innerHTML='<div class=cover-placeholder><svg viewBox=\'0 0 24 24\' fill=\'currentColor\'><path d=\'M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z\'/></svg></div>'"`;
+    const ma=document.getElementById('miniArt');ma.src=cu;ma.style.display='block';
+  }
+}
+
+async function togglePlay(){
+  const s=await apiCall('GET','/status');
+  if(s&&s.state==='play')await apiCall('POST','/pause');else await apiCall('POST','/play');
+  setTimeout(refreshStatus,200);
+}
+async function toggleRepeat(){await apiCall('POST','/repeat');setTimeout(refreshStatus,200);}
+async function toggleRandom(){await apiCall('POST','/random');setTimeout(refreshStatus,200);}
+async function setVolume(v){await apiCall('POST','/volume',{volume:parseInt(v)});}
+function toggleMute(){const sl=document.getElementById('volSlider');if(muted){sl.value=lastVol;setVolume(lastVol);muted=false;}else{lastVol=sl.value;sl.value=0;setVolume(0);muted=true;}}
+async function seekTo(e){const b=document.getElementById('pbar');const pct=e.offsetX/b.offsetWidth;await apiCall('POST','/seek',{position:pct*state.duration});setTimeout(refreshStatus,200);}
+
+function switchView(v){
+  document.getElementById('playerView').style.display=v==='player'?'flex':'none';
+  document.getElementById('settingsView').classList.toggle('active',v==='settings');
+  document.getElementById('tabPlayer').classList.toggle('active',v==='player');
+  document.getElementById('tabSettings').classList.toggle('active',v==='settings');
+  if(v==='settings')loadSettings();
+}
+
+function switchSidebar(mode){
+  sidebarMode=mode;
+  document.getElementById('stabQueue').classList.toggle('active',mode==='queue');
+  document.getElementById('stabLibrary').classList.toggle('active',mode==='library');
+  document.getElementById('searchWrap').style.display=mode==='library'?'block':'none';
+  document.getElementById('breadcrumbWrap').style.display=mode==='library'&&libPath.length?'block':'none';
+  if(mode==='queue')loadQueue();else{libPath=[];loadLibrary('');}
+}
+
+async function loadQueue(){
+  const r=await apiCall('GET','/queue');if(!r)return;
+  const list=document.getElementById('sidebarList');list.innerHTML='';
+  r.queue.forEach((item,i)=>{
+    const div=document.createElement('div');div.className='slist-item'+(item.file===state.file?' playing':'');
+    const name=item.title||item.file.split('/').pop();
+    const dur=item.time?fmt(parseInt(item.time)):'';
+    div.innerHTML=`<div class="slist-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg></div><div class="slist-info"><div class="slist-title">${name}</div><div class="slist-sub">${item.artist||''}</div></div><div class="slist-dur">${dur}</div>`;
+    div.onclick=()=>{apiCall('POST','/play_file',{file:item.file});setTimeout(refreshStatus,500);};
+    list.appendChild(div);
+  });
+}
+
+async function loadLibrary(path){
+  const r=await apiCall('GET','/library'+(path?'?path='+encodeURIComponent(path):''));if(!r)return;
+  const list=document.getElementById('sidebarList');list.innerHTML='';
+  const bc=document.getElementById('breadcrumbWrap');
+  bc.style.display=libPath.length?'block':'none';
+  if(libPath.length){bc.innerHTML=`<div class="breadcrumb" onclick="navBack()"><svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg> 返回</div>`;}
+ 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.47.47 0 0 0-.12-.61l-2.01-1.58zM12 15.6a3.6 3.6 0 1 1 0-7.2 3.6 3.6 0 0 1 0 7.2z"/></svg>系統設定
+    </button>
+  </nav>
+  <div class="sidebar-section">播放列隊</div>
+  <div class="queue-scroll" id="queueScroll"></div>
+</aside>
+
+<!-- Content -->
+<div class="content">
+
+  <!-- Player View -->
+  <div class="player-view" id="playerView">
+    <div class="now-playing">
+      <div class="bg-art" id="bgArt"></div>
+      <div class="cover-container">
+        <div class="cover-art" id="coverArt">
+          <div class="cover-placeholder"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg></div>
+        </div>
+      </div>
+      <div class="track-meta">
+        <div class="track-title" id="trackTitle">未選擇歌曲</div>
+        <div class="track-artist" id="trackArtist">—</div>
+        <div class="track-album" id="trackAlbum"></div>
+      </div>
+    </div>
+    <div class="lib-panel hidden" id="libPanel">
+      <div class="panel-head">
+        <button class="cbtn" id="backBtn" onclick="navBack()" style="display:none"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button>
+        <h3 id="panelTitle">音樂庫</h3>
+        <button class="cbtn" onclick="setView('player')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
+      </div>
+      <div class="search-box"><input type="text" placeholder="搜索音樂..." id="searchInput" oninput="doSearch(this.value)"></div>
+      <div class="lib-list" id="libList"></div>
+    </div>
   </div>
 
-  <!-- Volume -->
-  <div class="volume-section">
-    <span class="vol-icon">🔈</span>
-    <input type="range" min="0" max="100" value="72" id="vol-slider"
-      oninput="document.getElementById('vol-val').textContent=this.value">
-    <span class="vol-val" id="vol-val">72</span>
+  <!-- Settings View -->
+  <div class="settings-view" id="settingsView">
+    <div class="settings-grid">
+      <!-- System Stats -->
+      <div class="card">
+        <div class="card-title"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg>系統狀態</div>
+        <div class="stat-grid">
+          <div class="stat-item"><div class="label">CPU</div><div class="value" id="statCpu">—<span class="unit">%</span></div></div>
+          <div class="stat-item"><div class="label">記憶體</div><div class="value" id="statMem">—<span class="unit">%</span></div></div>
+        </div>
+      </div>
+      <!-- Services -->
+      <div class="card">
+        <div class="card-title"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>服務管理</div>
+        <div class="svc-list" id="svcList">
+          <div class="svc-item" id="svc-mpd">
+            <div class="svc-dot off" id="dot-mpd"></div>
+            <div class="svc-name">MPD 播放器</div>
+            <div class="svc-status" id="status-mpd">未知</div>
+            <button class="toggle-btn" onclick="toggleSvc('mpd')" id="btn-mpd">啟動</button>
+          </div>
+          <div class="svc-item" id="svc-roon">
+            <div class="svc-dot off" id="dot-roon"></div>
+            <div class="svc-name">Roon Bridge</div>
+            <div class="svc-status" id="status-roon">未知</div>
+            <button class="toggle-btn" onclick="toggleSvc('roon')" id="btn-roon">啟動</button>
+          </div>
+          <div class="svc-item" id="svc-diretta">
+            <div class="svc-dot off" id="dot-diretta"></div>
+            <div class="svc-name">Diretta</div>
+            <div class="svc-status" id="status-diretta">未知</div>
+            <button class="toggle-btn" onclick="toggleSvc('diretta')" id="btn-diretta">啟動</button>
+          </div>
+          <div class="svc-item" id="svc-naa">
+            <div class="svc-dot off" id="dot-naa"></div>
+            <div class="svc-name">NAA</div>
+            <div class="svc-status" id="status-naa">未知</div>
+            <button class="toggle-btn" onclick="toggleSvc('naa')" id="btn-naa">啟動</button>
+          </div>
+        </div>
+      </div>
+      <!-- Disk Management -->
+      <div class="card full-width">
+        <div class="card-title"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 6H5L3 10v8h18v-8l-2-4zM5.58 8h12.84l1 2H4.58l1-2zM5 16v-4h14v4H5z"/></svg>硬盤管理</div>
+        <div class="disk-list" id="diskList"><div style="color:var(--dim);font-size:.85rem">載入中...</div></div>
+      </div>
+    </div>
   </div>
 
-  <!-- Quality -->
-  <div class="quality">
-    <span class="q-badge active">FLAC</span>
-    <span class="q-badge active">24bit</span>
-    <span class="q-badge active">96kHz</span>
-    <span class="q-badge">DSD</span>
-    <span class="q-badge">MQA</span>
+  <!-- Player Bar -->
+  <div class="player-bar">
+    <div class="progress-row">
+      <span class="time-label" id="elapsed">0:00</span>
+      <div class="progress-track" id="progressTrack" onclick="seekTo(event)">
+        <div class="progress-fill" id="progressFill" style="width:0%"></div>
+      </div>
+      <span class="time-label r" id="duration">0:00</span>
+    </div>
+    <div class="controls-row">
+      <div class="ctrl-left">
+        <img class="mini-cover" id="miniCover" style="display:none">
+        <div class="mini-info">
+          <div class="t" id="miniTitle">—</div>
+          <div class="a" id="miniArtist"></div>
+        </div>
+      </div>
+      <div class="ctrl-center">
+        <button class="cbtn" id="btnRandom" onclick="toggleRandom()" title="隨機"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg></button>
+        <button class="cbtn cbtn-lg" onclick="api('POST','/prev')" title="上一首"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg></button>
+        <button class="cbtn cbtn-main" id="btnPlay" onclick="togglePlay()"><svg id="iPlay" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg><svg id="iPause" viewBox="0 0 24 24" fill="currentColor" style="display:none"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg></button>
+        <button class="cbtn cbtn-lg" onclick="api('POST','/next')" title="下一首"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zm2-8.14L11.03 12 8 14.14V9.86zM16 6h2v12h-2z"/></svg></button>
+        <button class="cbtn" id="btnRepeat" onclick="toggleRepeat()" title="重複"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg></button>
+      </div>
+      <div class="ctrl-right">
+        <button class="cbtn" onclick="toggleMute()" title="靜音"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg></button>
+        <div class="vol-row"><input type="range" class="vol-slider" id="volSlider" min="0" max="100" value="50" oninput="setVol(this.value)"></div>
+        <button class="cbtn" onclick="setView('library')" title="音樂庫"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg></button>
+      </div>
+    </div>
   </div>
+</div>
 </div>
 
 <script>
-const API = 'http://192.168.0.220:8080/api';
-let pollTimer, progressTimer;
-let state = { playing: false, elapsed: 0, duration: 0 };
+const API='http://192.168.0.220:8080/api';
+let st={state:'stop',elapsed:0,duration:0,volume:50,repeat:false,random:false,title:'',artist:'',album:'',file:''};
+let libStack=[];
+let muted=false,lastVol=50;
 
-async function api(method, path, body) {
-  try {
-    const r = await fetch(API + path, {
-      method, headers: {'Content-Type':'application/json'},
-      body: body ? JSON.stringify(body) : undefined
-    });
+async function api(method,path,body){
+  try{
+    const r=await fetch(API+path,{method,headers:{'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
     return await r.json();
-  } catch(e) { console.error(e); return null; }
+  }catch(e){return null;}
 }
 
-function fmt(s) {
-  s = Math.floor(s||0);
-  return Math.floor(s/60)+':'+(s%60).toString().padStart(2,'0');
+function fmt(s){s=Math.floor(s||0);return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');}
+
+function coverUrl(file){
+  if(!file) return '';
+  const dir=file.split('/').slice(0,-1).join('/');
+  return API+'/cover?path='+encodeURIComponent(dir);
 }
 
-function updateUI(s) {
-  if (!s) return;
-  state.playing = s.state === 'play';
-  state.elapsed = s.elapsed;
-  state.duration = s.duration;
-
-  document.getElementById('title').textContent = s.title || '—';
-  document.getElementById('artist').textContent = s.artist || '—';
-  document.getElementById('album').textContent = s.album || '';
-  document.getElementById('btn-play').textContent = state.playing ? '⏸' : '▶';
-  document.getElementById('vinyl').style.animationPlayState = state.playing ? 'running' : 'paused';
-  document.getElementById('vol-slider').value = s.volume;
-  document.getElementById('vol-val').textContent = s.volume;
-
-  // format badge
-  const file = s.file || '';
-  const ext = file.split('.').pop().toUpperCase();
-  document.querySelectorAll('.q-badge').forEach(b => {
-    b.classList.toggle('active', b.textContent === ext);
-  });
-
-  // audio format (samplerate)
-  if (s.format) {
-    const parts = s.format.split(':');
-    if (parts[0]) {
-      const hz = parseInt(parts[0]);
-      document.querySelectorAll('.q-badge').forEach(b => {
-        if (b.textContent.includes('kHz')) b.textContent = (hz/1000).toFixed(0)+'kHz';
-      });
-    }
+async function refresh(){
+  const s=await api('GET','/status');
+  if(!s) return;
+  st={...st,...s};
+  const playing=s.state==='play';
+  document.getElementById('iPlay').style.display=playing?'none':'block';
+  document.getElementById('iPause').style.display=playing?'block':'none';
+  document.getElementById('trackTitle').textContent=s.title||'未選擇歌曲';
+  document.getElementById('trackArtist').textContent=s.artist||'—';
+  document.getElementById('trackAlbum').textContent=s.album||'';
+  document.getElementById('miniTitle').textContent=s.title||'—';
+  document.getElementById('miniArtist').textContent=s.artist||'';
+  const pct=s.duration>0?(s.elapsed/s.duration*100):0;
+  document.getElementById('progressFill').style.width=Math.min(pct,100)+'%';
+  document.getElementById('elapsed').textContent=fmt(s.elapsed);
+  document.getElementById('duration').textContent=fmt(s.duration);
+  document.getElementById('volSlider').value=s.volume;
+  document.getElementById('btnRepeat').classList.toggle('on',s.repeat);
+  document.getElementById('btnRandom').classList.toggle('on',s.random);
+  if(s.file){
+    const cu=coverUrl(s.file);
+    document.getElementById('bgArt').style.backgroundImage=`url('${cu}')`;
+    document.getElementById('coverArt').innerHTML=`<img src="${cu}" onerror="this.parentElement.innerHTML='<div class=cover-placeholder><svg viewBox=\'0 0 24 24\' fill=\'currentColor\'><path d=\'M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z\'/></svg></div>'">`;
+    const mc=document.getElementById('miniCover');
+    mc.src=cu; mc.style.display='block';
+    mc.onerror=()=>mc.style.display='none';
   }
-
-  updateProgress();
+  // update queue active
+  document.querySelectorAll('.q-item').forEach(el=>{
+    el.classList.toggle('active',el.dataset.file===s.file);
+  });
 }
 
-function updateProgress() {
-  const pct = state.duration > 0 ? (state.elapsed / state.duration * 100) : 0;
-  document.getElementById('progress').style.width = pct + '%';
-  document.getElementById('cur-time').textContent = fmt(state.elapsed);
-  document.getElementById('tot-time').textContent = fmt(state.duration);
+async function togglePlay(){
+  const s=await api('GET','/status');
+  if(s&&s.state==='play') await api('POST','/pause');
+  else await api('POST','/play');
+  setTimeout(refresh,200);
 }
+async function toggleRepeat(){await api('POST','/repeat');setTimeout(refresh,200);}
+async function toggleRandom(){await api('POST','/random');setTimeout(refresh,200);}
+async function setVol(v){await api('POST','/volume',{volume:parseInt(v)});}
+function
 
-async function refreshStatus() {
-  const s = await api('GET', '/status');
-  updateUI(s);
-}
-
-// smooth progress increment
-function startProgressTick() {
-  clearInterval(progressTimer);
-  progressTimer = setInterval(() => {
-    if (state.playing && state.duration > 0) {
-      state.elapsed = Math.min(state.elapsed + 1, state.duration);
-      updateProgress();
+  r.items.forEach(item=>{
+    const div=document.createElement('div');div.className='slist-item';
+    if(item.directory){
+      const name=item.directory.split('/').pop();
+      div.innerHTML=`<div class="slist-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg></div><div class="slist-info"><div class="slist-title">${name}</div><div class="slist-sub">資料夾</div></div>`;
+      div.onclick=()=>{libPath.push(path);loadLibrary(item.directory);};
+    }else if(item.file){
+      const name=item.title||item.file.split('/').pop().replace(/\.[^.]+$/,'');
+      const dur=item.time?fmt(parseInt(item.time)):'';
+      div.innerHTML=`<div class="slist-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg></div><div class="slist-info"><div class="slist-title">${name}</div><div class="slist-sub">${item.artist||''}</div></div><div class="slist-dur">${dur}</div>`;
+      div.ondblclick=()=>{apiCall('POST','/play_file',{file:item.file});switchView('player');setTimeout(refreshStatus,500);};
     }
-  }, 1000);
+    list.appendChild(div);
+  });
 }
 
-async function togglePlay() {
-  if (state.playing) await api('POST', '/pause');
-  else await api('POST', '/play');
-  setTimeout(refreshStatus, 200);
+function navBack(){
+  const prev=libPath.pop();loadLibrary(prev||'');
 }
 
-async function next() { await api('POST', '/next'); setTimeout(refreshStatus, 300); }
-async function prev() { await api('POST', '/prev'); setTimeout(refreshStatus, 300); }
-async function stop() { await api('POST', '/stop'); setTimeout(refreshStatus, 200); }
-
-async function setVolume(val) {
-  await api('POST', '/volume', {volume: parseInt(val)});
+let searchTimer;
+async function doSearch(q){
+  clearTimeout(searchTimer);
+  if(!q){loadLibrary('');return;}
+  searchTimer=setTimeout(async()=>{
+    const r=await apiCall('POST','/search',{query:q});if(!r)return;
+    const list=document.getElementById('sidebarList');list.innerHTML=''; 
+    r.results.forEach(item=>{
+      const div=document.createElement('div');div.className='slist-item';
+      const name=item.title||item.file.split('/').pop();
+      div.innerHTML=`<div class="slist-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg></div><div class="slist-info"><div class="slist-title">${name}</div><div class="slist-sub">${item.artist||''}</div></div>`;
+      div.ondblclick=()=>{apiCall('POST','/play_file',{file:item.file});switchView('player');setTimeout(refreshStatus,500);};
+      list.appendChild(div);
+    });
+  },400);
 }
 
-async function seek(e) {
-  if (!state.duration) return;
-  const rect = e.currentTarget.getBoundingClientRect();
-  const pct = (e.clientX - rect.left) / rect.width;
-  const pos = pct * state.duration;
-  state.elapsed = pos;
-  updateProgress();
-  await api('POST', '/seek', {position: pos});
+async function loadSettings(){
+  // System stats
+  const sys=await apiCall('GET','/system');
+  if(sys){
+    document.getElementById('sCpu').textContent=sys.cpu_percent.toFixed(1)+' %';
+    const memPct=(sys.memory_used/sys.memory_total*100).toFixed(1);
+    document.getElementById('sMem').textContent=memPct+' %';
+  }
+  // Services
+  const svcs=[
+    {id:'mpd',name:'mpd'},
+    {id:'roon',name:'roonserver'},
+    {id:'diretta',name:'diretta-alsa'},
+    {id:'naa',name:'networkaudiod'}
+  ];
+  for(const svc of svcs){
+    try{
+      const r=await fetch('http://192.168.0.220:8080/api/service/status?name='+svc.id);
+      const d=await r.json();
+      const running=d.running;
+      const dot=document.getElementById('dot-'+svc.id);
+      const btn=document.getElementById('btn-'+svc.id);
+      if(dot){dot.className='svc-dot '+( running?'running':'stopped');}
+      if(btn){btn.textContent=running?'停止':'啟動';btn.className='svc-toggle '+( running?'stop':'start');}
+    }catch(e){}
+  }
+  // Disks
+  const disks=await apiCall('GET','/mounts');
+  if(disks&&disks.mounts){
+    const body=document.getElementById('disksBody');body.innerHTML='' ;
+    disks.mounts.filter(m=>m.total&&m.total>1e8).forEach(m=>{
+      const pct=(m.used/m.total*100).toFixed(1);
+      const gb=v=>( v/1e9).toFixed(1)+' GB';
+      const div=document.createElement('div');div.className='disk-row';
+      div.innerHTML=`<div class="disk-info"><div class="disk-name">${m.mountpoint}</div><div class="disk-meta">${m.device} · ${m.fstype} · ${gb(m.free)} 可用</div></div><div class="disk-bar-wrap"><div style="font-size:0.75rem;color:var(--dim);text-align:right">${pct}%</div><div class="disk-bar"><div class="disk-bar-fill" style="width:${pct}%"></div></div></div>`;
+      body.appendChild(div);
+    });
+    if(!body.children.length)body.innerHTML='<div style="color:var(--dim);font-size:0.85rem;">未找到儲存裝置</div>';
+  }
 }
 
-async function toggleRepeat() {
-  const r = await api('POST', '/repeat');
-  if (r) document.getElementById('btn-repeat').style.color = r.repeat ? '#26d1d9' : '';
+async function toggleService(id){
+  const btn=document.getElementById('btn-'+id);
+  const action=btn.classList.contains('stop')?' stop':'start';
+  await apiCall('POST','/service/toggle',{name:id,action:action.trim()});
+  setTimeout(loadSettings,1000);
 }
 
-async function toggleShuffle() {
-  const r = await api('POST', '/random');
-  if (r) document.getElementById('btn-shuffle').style.color = r.random ? '#26d1d9' : '';
-}
-
-// init
+// Init
 refreshStatus();
-startProgressTick();
-pollTimer = setInterval(refreshStatus, 5000);
+loadQueue();
+setInterval(refreshStatus,2000);
+setInterval(()=>{
+  if(state.state==='play'){
+    state.elapsed+=2;
+    const pct=state.duration>0?(state.elapsed/state.duration*100):0;
+    document.getElementById('pbarFill').style.width=Math.min(pct,100)+'%';
+    document.getElementById('ptimeElapsed').textContent=fmt(state.elapsed);
+  }
+},2000);
 </script>
 </body>
 </html>
+<script>
+toggleMute(){
+  const s=document.getElementById('volSlider');
+  if(muted){s.value=lastVol;setVol(lastVol);muted=false;}
+  else{lastVol=s.value;s.value=0;setVol(0);muted=true;}
+}
+async function seekTo(e){
+  const bar=document.getElementById('progressTrack');
+  const pos=(e.offsetX/bar.offsetWidth)*st.duration;
+  await api('POST','/seek',{position:pos});
+  setTimeout(refresh,200);
+}
+
+function setView(v){
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  const btns=document.querySelectorAll('.nav-btn');
+  if(v==='player'){btns[0].classList.add('active');}
+  else if(v==='library'){btns[1].classList.add('active');}
+  else if(v==='settings'){btns[2].classList.add('active');}
+  
+  const pv=document.getElementById('playerView');
+  const sv=document.getElementById('settingsView');
+  const lp=document.getElementById('libPanel');
+  
+  pv.style.display=(v==='player'||v==='library')?'flex':'none';
+  sv.style.display=v==='settings'?'block':'none';
+  lp.classList.toggle('hidden',v!=='library');
+  
+  if(v==='library'){loadLib('');}
+  if(v==='settings'){loadSettings();}
+}
+
+let libStack=[];
+async function loadLib(path){
+  const r=await api('GET','/library'+(path?'?path='+encodeURIComponent(path):''));
+  if(!r) return;
+  const list=document.getElementById('libList');
+  const backBtn=document.getElementById('backBtn');
+  backBtn.style.display=libStack.length>0?'flex':'none';
+  document.getElementById('panelTitle').textContent=path?path.split('/').pop():'音樂庫';
+  list.innerHTML='';
+  r.items.forEach(item=>{
+    const div=document.createElement('div');
+    div.className='lib-item';
+    if(item.directory){
+      div.innerHTML=`<div class="lib-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg></div><div class="lib-info"><div class="lib-name">${item.directory.split('/').pop()}</div><div class="lib-sub">資料夾</div></div>`;
+      div.onclick=()=>{libStack.push(path);loadLib(item.directory);};
+    } else if(item.file){
+      const name=(item.title||item.file.split('/').pop().replace(/\.[^.]+$/,''));
+      const dur=item.time?fmt(parseInt(item.time)):'';
+      div.innerHTML=`<div class="lib-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg></div><div class="lib-info"><div class="lib-name">${name}</div><div class="lib-sub">${item.artist||''}</div></div><span style="font-size:.7rem;color:var(--dim2)">${dur}</span>`;
+      div.ondblclick=()=>playFile(item.file);
+    }
+    list.appendChild(div);
+  });
+}
+
+function navBack(){
+  const prev=libStack.pop();
+  loadLib(prev||'');
+}
+
+async function playFile(file){
+  await api('POST','/play_file',{file});
+  setView('player');
+  setTimeout(()=>{refresh();loadQueue();},500);
+}
+
+async function loadQueue(){
+  const r=await api('GET','/queue');
+  if(!r) return;
+  const el=document.getElementById('queueScroll');
+  el.innerHTML='';
+  r.queue.forEach((item,i)=>{
+    const div=document.createElement('div');
+    div.className='q-item';
+    div.dataset.file=item.file||'';
+    const name=item.title||item.file.split('/').pop();
+    div.innerHTML=`<div class="q-num">${i+1}</div><div class="q-info"><div class="q-title">${name}</div><div class="q-artist">${item.artist||''}</div></div><div class="q-dur">${item.time?fmt(parseInt(item.time)):''}</div>`;
+    div.onclick=()=>{api('POST','/play_file',{file:item.file});setTimeout(()=>{refresh();},500);};
+    el.appendChild(div);
+  });
+}
+
+let searchTimer;
+async function doSearch(q){
+  clearTimeout(searchTimer);
+  if(!q){loadLib('');return;}
+  searchTimer=setTimeout(async()=>{
+    const r=await api('POST','/search',{query:q});
+    if(!r) return;
+    const list=document.getElementById('libList');
+    list.innerHTML='';
+    r.results.forEach(item=>{
+      const div=document.createElement('div');
+      div.className='lib-item';
+      const name=item.title||item.file.split('/').pop();
+      div.innerHTML=`<div class="lib-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg></div><div class="lib-info"><div class="lib-name">${name}</div><div class="lib-sub">${item.artist||''} ${item.album?'· '+item.album:''}</div></div>`;
+      div.ondblclick=()=>playFile(item.file);
+      list.appendChild(div);
+    });
+  },400);
+}
+
+async function loadSettings(){
+  // System stats
+  const sys=await api('GET','/system');
+  if(sys){
+    document.getElementById('statCpu').innerHTML=Math.round(sys.cpu_percent)+'<span class="unit">%</span>';
+    document.getElementById('statMem').innerHTML=Math.round(sys.memory_percent)+'<span class="unit">%</span>';
+  }
+  // Services
+  const svcs=['mpd','roon','diretta','naa'];
+  for(const svc of svcs){
+    const r=await api('GET','/service/status?name='+svc);
+    if(r) updateSvcUI(svc,r.active);
+  }
+  // Disks
+  const mounts=await api('GET','/mounts');
+  if(mounts){
+    const list=document.getElementById('diskList');
+    list.innerHTML='';
+    mounts.mounts.filter(m=>m.total).forEach(m=>{
+      const pct=Math.round(m.percent||0);
+      const used=fmt2(m.used);const total=fmt2(m.total);
+      const div=document.createElement('div');
+      div.className='disk-item';
+      div.innerHTML=`<div class="disk-head"><span class="disk-dev">${m.device}</span><span class="disk-mp">${m.mountpoint}</span></div><div class="disk-bar"><div class="disk-bar-fill" style="width:${pct}%"></div></div><div class="disk-info"><span>${used} / ${total}</span><span>${pct}%</span></div>`;
+      list.appendChild(div);
+    });
+  }
+}
+
+function fmt2(bytes){
+  if(bytes>1e12) return (bytes/1e12).toFixed(1)+'TB';
+  if(bytes>1e9) return (bytes/1e9).toFixed(1)+'GB';
+  return (bytes/1e6).toFixed(0)+'MB';
+}
+
+function updateSvcUI(svc,active){
+  const dot=document.getElementById('dot-'+svc);
+  const status=document.getElementById('status-'+svc);
+  const btn=document.getElementById('btn-'+svc);
+  if(!dot) return;
+  dot.className='svc-dot '+(active?'on':'off');
+  status.textContent=active?'運行中':'已停止';
+  btn.textContent=active?'停止':'啟動';
+  btn.className='toggle-btn'+(active?' stop':'');
+}
+
+async function toggleSvc(svc){
+  const dot=document.getElementById('dot-'+svc);
+  const active=dot.classList.contains('on');
+  const action=active?'stop':'start';
+  const r=await api('POST','/service/toggle',{name:svc,action});
+  if(r) updateSvcUI(svc,!active);
+}
+
+// Init
+refresh();
+loadQueue();
+setInterval(refresh,2000);
+setInterval(loadQueue,10000);
+</script></body></html>
