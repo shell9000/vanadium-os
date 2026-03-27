@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VVAI Audio Player</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #1e1e22;
+  color: #c0c0cc;
+  font-family: 'SF Pro Display', -apple-system, 'Noto Serif CJK HK', 'Noto Sans CJK HK', 'WenQuanYi Micro Hei', sans-serif;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* Background ambient glow from cover */
+.ambient {
+  position: fixed;
+  top: -20%; left: -20%;
+  width: 140%; height: 140%;
+  background: radial-gradient(ellipse at 50% 40%, rgba(38,209,217,0.08) 0%, transparent 60%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.player {
+  position: relative;
+  z-index: 1;
+  width: 380px;
+  background: #1e1e22;
+  border-radius: 32px;
+  padding: 36px 32px 32px;
+  box-shadow: 16px 16px 40px #111114, -16px -16px 40px #2b2b30;
+}
+
+/* Cover Art */
+.cover-wrap {
+  position: relative;
+  width: 240px;
+  height: 240px;
+  margin: 0 auto 28px;
+}
+.cover {
+  width: 100%; height: 100%;
+  border-radius: 24px;
+  background: linear-gradient(135deg, #1a3a3b, #0d1a1b);
+  box-shadow: 10px 10px 25px #111114, -10px -10px 25px #2b2b30, 0 0 40px rgba(38,209,217,0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 80px;
+  overflow: hidden;
+}
+.cover img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  border-radius: 24px;
+}
+.cover-vinyl {
+  position: absolute;
+  right: -30px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 120px; height: 120px;
+  border-radius: 50%;
+  background: repeating-radial-gradient(circle, #111114 0px, #1a1a1e 3px, #111114 4px);
+  box-shadow: 4px 4px 12px #111114;
+  opacity: 0.6;
+  animation: spin 8s linear infinite;
+  animation-play-state: running;
+}
+.cover-vinyl::after {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%,-50%);
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: #26d1d9;
+  box-shadow: 0 0 10px rgba(38,209,217,0.6);
+}
+@keyframes spin { from { transform: translateY(-50%) rotate(0deg); } to { transform: translateY(-50%) rotate(360deg); } }
+
+/* Track Info */
+.track-info {
+  text-align: center;
+  margin-bottom: 24px;
+}
+.track-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #e8e8f0;
+  margin-bottom: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.track-artist {
+  font-size: 14px;
+  color: #26d1d9;
+  margin-bottom: 4px;
+}
+.track-album {
+  font-size: 12px;
+  color: #666;
+}
+
+/* Source Badge */
+.source-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #1e1e22;
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-size: 11px;
+  color: #26d1d9;
+  box-shadow: 3px 3px 7px #111114, -3px -3px 7px #2b2b30;
+  margin-top: 8px;
+}
+.source-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #26d1d9;
+  box-shadow: 0 0 6px rgba(38,209,217,0.8);
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+
+/* Progress */
+.progress-section {
+  margin-bottom: 24px;
+}
+.progress-track {
+  height: 4px;
+  border-radius: 4px;
+  background: #1e1e22;
+  box-shadow: inset 2px 2px 4px #111114, inset -2px -2px 4px #2b2b30;
+  cursor: pointer;
+  margin-bottom: 8px;
+  position: relative;
+}
+.progress-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #1aacb3, #26d1d9);
+  box-shadow: 0 0 8px rgba(38,209,217,0.4);
+  width: 35%;
+  position: relative;
+  transition: width 0.5s linear;
+}
+.progress-fill::after {
+  content: '';
+  position: absolute;
+  right: -6px; top: -4px;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: #26d1d9;
+  box-shadow: 0 0 8px rgba(38,209,217,0.8);
+}
+.time-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #666;
+}
+
+/* Controls */
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+.btn-ctrl {
+  border: none;
+  background: #1e1e22;
+  color: #c0c0cc;
+  cursor: pointer;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+.btn-ctrl:hover { color: #26d1d9; }
+.btn-ctrl:active { box-shadow: inset 2px 2px 6px #111114, inset -2px -2px 6px #2b2b30 !important; }
+.btn-sm {
+  width: 44px; height: 44px;
+  font-size: 18px;
+  box-shadow: 4px 4px 10px #111114, -4px -4px 10px #2b2b30;
+}
+.btn-play {
+  width: 68px; height: 68px;
+  font-size: 26px;
+  background: linear-gradient(145deg, #22c5cd, #1aacb3);
+  color: #0d1a1b !important;
+  box-shadow: 6px 6px 14px #111114, -6px -6px 14px #2b2b30, 0 0 24px rgba(38,209,217,0.3);
+}
+.btn-play:hover {
+  box-shadow: 6px 6px 14px #111114, -6px -6px 14px #2b2b30, 0 0 36px rgba(38,209,217,0.5) !important;
+}
+
+/* Volume */
+.volume-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.vol-icon { font-size: 16px; color: #666; }
+input[type=range] {
+  -webkit-appearance: none;
+  flex: 1;
+  height: 4px;
+  border-radius: 4px;
+  background: #1e1e22;
+  box-shadow: inset 2px 2px 4px #111114, inset -2px -2px 4px #2b2b30;
+  outline: none;
+  cursor: pointer;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: #1e1e22;
+  box-shadow: 2px 2px 6px #111114, -2px -2px 6px #2b2b30;
+  border: 2px solid #26d1d9;
+}
+.vol-val { font-size: 12px; color: #26d1d9; width: 32px; text-align: right; }
+
+/* Quality Badge */
+.quality {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 20px;
+}
+.q-badge {
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: #1e1e22;
+  box-shadow: 2px 2px 5px #111114, -2px -2px 5px #2b2b30;
+  color: #666;
+  letter-spacing: 0.5px;
+}
+.q-badge.active { color: #26d1d9; }
+</style>
+</head>
+<body>
+<div class="ambient"></div>
+
+<div class="player">
+  <!-- Cover -->
+  <div class="cover-wrap">
+    <div class="cover">🎵</div>
+    <div class="cover-vinyl" id="vinyl"></div>
+  </div>
+
+  <!-- Track Info -->
+  <div class="track-info">
+    <div class="track-title" id="title">情人的眼淚</div>
+    <div class="track-artist" id="artist">蔡琴</div>
+    <div class="track-album" id="album">金片子</div>
+    <div class="source-badge">
+      <div class="source-dot"></div>
+      <span>Roon · FLAC 24bit/96kHz</span>
+    </div>
+  </div>
+
+  <!-- Progress -->
+  <div class="progress-section">
+    <div class="progress-track" onclick="seek(event)">
+      <div class="progress-fill" id="progress"></div>
+    </div>
+    <div class="time-labels">
+      <span id="cur-time">1:24</span>
+      <span id="tot-time">4:02</span>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <button class="btn-ctrl btn-sm" onclick="prev()">⏮</button>
+    <button class="btn-ctrl btn-sm" onclick="toggleShuffle()" id="btn-shuffle" style="font-size:16px">🔀</button>
+    <button class="btn-ctrl btn-play" onclick="togglePlay()" id="btn-play">⏸</button>
+    <button class="btn-ctrl btn-sm" onclick="toggleRepeat()" id="btn-repeat" style="font-size:16px">🔁</button>
+    <button class="btn-ctrl btn-sm" onclick="next()">⏭</button>
+  </div>
+
+  <!-- Volume -->
+  <div class="volume-section">
+    <span class="vol-icon">🔈</span>
+    <input type="range" min="0" max="100" value="72" id="vol-slider"
+      oninput="document.getElementById('vol-val').textContent=this.value">
+    <span class="vol-val" id="vol-val">72</span>
+  </div>
+
+  <!-- Quality -->
+  <div class="quality">
+    <span class="q-badge active">FLAC</span>
+    <span class="q-badge active">24bit</span>
+    <span class="q-badge active">96kHz</span>
+    <span class="q-badge">DSD</span>
+    <span class="q-badge">MQA</span>
+  </div>
+</div>
+
+<script>
+const API = 'http://192.168.0.220:8080/api';
+let pollTimer, progressTimer;
+let state = { playing: false, elapsed: 0, duration: 0 };
+
+async function api(method, path, body) {
+  try {
+    const r = await fetch(API + path, {
+      method, headers: {'Content-Type':'application/json'},
+      body: body ? JSON.stringify(body) : undefined
+    });
+    return await r.json();
+  } catch(e) { console.error(e); return null; }
+}
+
+function fmt(s) {
+  s = Math.floor(s||0);
+  return Math.floor(s/60)+':'+(s%60).toString().padStart(2,'0');
+}
+
+function updateUI(s) {
+  if (!s) return;
+  state.playing = s.state === 'play';
+  state.elapsed = s.elapsed;
+  state.duration = s.duration;
+
+  document.getElementById('title').textContent = s.title || '—';
+  document.getElementById('artist').textContent = s.artist || '—';
+  document.getElementById('album').textContent = s.album || '';
+  document.getElementById('btn-play').textContent = state.playing ? '⏸' : '▶';
+  document.getElementById('vinyl').style.animationPlayState = state.playing ? 'running' : 'paused';
+  document.getElementById('vol-slider').value = s.volume;
+  document.getElementById('vol-val').textContent = s.volume;
+
+  // format badge
+  const file = s.file || '';
+  const ext = file.split('.').pop().toUpperCase();
+  document.querySelectorAll('.q-badge').forEach(b => {
+    b.classList.toggle('active', b.textContent === ext);
+  });
+
+  // audio format (samplerate)
+  if (s.format) {
+    const parts = s.format.split(':');
+    if (parts[0]) {
+      const hz = parseInt(parts[0]);
+      document.querySelectorAll('.q-badge').forEach(b => {
+        if (b.textContent.includes('kHz')) b.textContent = (hz/1000).toFixed(0)+'kHz';
+      });
+    }
+  }
+
+  updateProgress();
+}
+
+function updateProgress() {
+  const pct = state.duration > 0 ? (state.elapsed / state.duration * 100) : 0;
+  document.getElementById('progress').style.width = pct + '%';
+  document.getElementById('cur-time').textContent = fmt(state.elapsed);
+  document.getElementById('tot-time').textContent = fmt(state.duration);
+}
+
+async function refreshStatus() {
+  const s = await api('GET', '/status');
+  updateUI(s);
+}
+
+// smooth progress increment
+function startProgressTick() {
+  clearInterval(progressTimer);
+  progressTimer = setInterval(() => {
+    if (state.playing && state.duration > 0) {
+      state.elapsed = Math.min(state.elapsed + 1, state.duration);
+      updateProgress();
+    }
+  }, 1000);
+}
+
+async function togglePlay() {
+  if (state.playing) await api('POST', '/pause');
+  else await api('POST', '/play');
+  setTimeout(refreshStatus, 200);
+}
+
+async function next() { await api('POST', '/next'); setTimeout(refreshStatus, 300); }
+async function prev() { await api('POST', '/prev'); setTimeout(refreshStatus, 300); }
+async function stop() { await api('POST', '/stop'); setTimeout(refreshStatus, 200); }
+
+async function setVolume(val) {
+  await api('POST', '/volume', {volume: parseInt(val)});
+}
+
+async function seek(e) {
+  if (!state.duration) return;
+  const rect = e.currentTarget.getBoundingClientRect();
+  const pct = (e.clientX - rect.left) / rect.width;
+  const pos = pct * state.duration;
+  state.elapsed = pos;
+  updateProgress();
+  await api('POST', '/seek', {position: pos});
+}
+
+async function toggleRepeat() {
+  const r = await api('POST', '/repeat');
+  if (r) document.getElementById('btn-repeat').style.color = r.repeat ? '#26d1d9' : '';
+}
+
+async function toggleShuffle() {
+  const r = await api('POST', '/random');
+  if (r) document.getElementById('btn-shuffle').style.color = r.random ? '#26d1d9' : '';
+}
+
+// init
+refreshStatus();
+startProgressTick();
+pollTimer = setInterval(refreshStatus, 5000);
+</script>
+</body>
+</html>

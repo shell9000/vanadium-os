@@ -1,0 +1,4 @@
+fastapi
+uvicorn
+python-mpd2
+psutil

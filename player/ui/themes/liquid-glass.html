@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VVAI Player - Liquid Glass</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: -apple-system, 'SF Pro Display', sans-serif;
+  overflow: hidden;
+  background: #0a0a0f;
+}
+
+/* 動態漸變背景 — 模擬專輯封面 ambient */
+.bg {
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 20% 30%, rgba(180, 80, 255, 0.5) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 70%, rgba(0, 180, 255, 0.45) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, rgba(255, 80, 120, 0.3) 0%, transparent 60%),
+    #0a0a0f;
+  filter: blur(0px);
+  animation: bgShift 12s ease-in-out infinite alternate;
+}
+@keyframes bgShift {
+  0%   { filter: hue-rotate(0deg) brightness(1); }
+  50%  { filter: hue-rotate(20deg) brightness(1.1); }
+  100% { filter: hue-rotate(-15deg) brightness(0.95); }
+}
+.bg-blur {
+  position: fixed;
+  inset: 0;
+  backdrop-filter: blur(80px);
+  -webkit-backdrop-filter: blur(80px);
+}
+
+/* Main Player Card */
+.player {
+  position: relative;
+  z-index: 10;
+  width: 360px;
+  border-radius: 36px;
+  padding: 32px 28px 28px;
+  background: rgba(255,255,255,0.08);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border: 1px solid rgba(255,255,255,0.18);
+  box-shadow:
+    0 32px 80px rgba(0,0,0,0.4),
+    0 0 0 0.5px rgba(255,255,255,0.1),
+    inset 0 2px 12px rgba(255,255,255,0.12),
+    inset 0 -2px 8px rgba(0,0,0,0.2);
+}
+
+/* Cover */
+.cover-wrap {
+  position: relative;
+  width: 220px;
+  height: 220px;
+  margin: 0 auto 24px;
+}
+.cover {
+  width: 100%; height: 100%;
+  border-radius: 24px;
+  background: linear-gradient(135deg, #7b2ff7, #00b4ff, #ff4b8b);
+  box-shadow:
+    0 20px 60px rgba(0,0,0,0.5),
+    0 0 0 1px rgba(255,255,255,0.15),
+    inset 0 1px 0 rgba(255,255,255,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 72px;
+  overflow: hidden;
+  animation: coverFloat 6s ease-in-out infinite;
+}
+@keyframes coverFloat {
+  0%,100% { transform: translateY(0px) rotate(-1deg); }
+  50% { transform: translateY(-8px) rotate(1deg); }
+}
+.cover-reflection {
+  position: absolute;
+  bottom: -20px;
+  left: 10%; width: 80%; height: 40px;
+  background: linear-gradient(135deg, #7b2ff7, #00b4ff, #ff4b8b);
+  border-radius: 50%;
+  filter: blur(20px);
+  opacity: 0.5;
+  animation: coverFloat 6s ease-in-out infinite;
+}
+
+/* Track Info */
+.track-info {
+  text-align: center;
+  margin-bottom: 20px;
+}
+.track-title {
+  font-size: 19px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.95);
+  margin-bottom: 5px;
+  letter-spacing: -0.3px;
+}
+.track-artist {
+  font-size: 13px;
+  color: rgba(255,255,255,0.55);
+  margin-bottom: 10px;
+}
+
+/* Source pill */
+.source-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  background: rgba(255,255,255,0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,0.15);
+  font-size: 11px;
+  color: rgba(255,255,255,0.7);
+}
+.source-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: #00e5ff;
+  box-shadow: 0 0 6px #00e5ff;
+  animation: pulse 2s infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+/* Progress */
+.progress-section { margin-bottom: 20px; }
+.progress-track {
+  height: 4px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.12);
+  cursor: pointer;
+  margin-bottom: 6px;
+  position: relative;
+  overflow: visible;
+}
+.progress-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #a855f7, #00b4ff);
+  box-shadow: 0 0 10px rgba(168,85,247,0.6);
+  width: 35%;
+  position: relative;
+  transition: width 0.3s linear;
+}
+.progress-fill::after {
+  content:'';
+  position: absolute;
+  right: -5px; top: -4px;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 0 8px rgba(168,85,247,0.8);
+}
+.time-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: rgba(255,255,255,0.4);
+}
+
+/* Controls */
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.btn-ctrl {
+  border: none;
+  background: rgba(255,255,255,0.08);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.8);
+  cursor: pointer;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.15);
+}
+.btn-ctrl:hover {
+  background: rgba(255,255,255,0.15);
+  transform: scale(1.05);
+  color: white;
+}
+.btn-ctrl:active { transform: scale(0.95); }
+.btn-sm { width: 42px; height: 42px; font-size: 16px; }
+.btn-play {
+  width: 66px; height: 66px;
+  font-size: 24px;
+  background: linear-gradient(135deg, rgba(168,85,247,0.6), rgba(0,180,255,0.6)) !important;
+  border: 1px solid rgba(255,255,255,0.25) !important;
+  box-shadow: 0 8px 30px rgba(168,85,247,0.4), inset 0 1px 0 rgba(255,255,255,0.25) !important;
+  color: white !important;
+}
+.btn-play:hover {
+  box-shadow: 0 12px 40px rgba(168,85,247,0.6), inset 0 1px 0 rgba(255,255,255,0.3) !important;
+  transform: scale(1.05) !important;
+}
+
+/* Volume */
+.volume-section {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.vol-icon { font-size: 14px; color: rgba(255,255,255,0.4); }
+input[type=range] {
+  -webkit-appearance: none;
+  flex: 1; height: 4px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.12);
+  outline: none;
+  cursor: pointer;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+.vol-val { font-size: 11px; color: rgba(255,255,255,0.4); width: 28px; text-align:right; }
+
+/* Bottom pills */
+.bottom-row {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+.pill {
+  padding: 5px 14px;
+  border-radius: 20px;
+  font-size: 11px;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.45);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.pill.active {
+  background: rgba(168,85,247,0.25);
+  border-color: rgba(168,85,247,0.5);
+  color: rgba(255,255,255,0.9);
+  box-shadow: 0 0 12px rgba(168,85,247,0.3);
+}
+</style>
+</head>
+<body>
+<div class="bg"></div>
+<div class="bg-blur"></div>
+
+<div class="player">
+  <!-- Cover -->
+  <div class="cover-wrap">
+    <div class="cover">🎵</div>
+    <div class="cover-reflection"></div>
+  </div>
+
+  <!-- Info -->
+  <div class="track-info">
+    <div class="track-title" id="title">Hey There</div>
+    <div class="track-artist" id="artist">Ayako Hosokawa</div>
+    <div class="source-pill">
+      <div class="source-dot"></div>
+      <span id="source-label">MPD · WAV</span>
+    </div>
+  </div>
+
+  <!-- Progress -->
+  <div class="progress-section">
+    <div class="progress-track" onclick="seekClick(event)">
+      <div class="progress-fill" id="progress"></div>
+    </div>
+    <div class="time-labels">
+      <span id="cur-time">0:00</span>
+      <span id="tot-time">0:00</span>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <button class="btn-ctrl btn-sm" onclick="prev()">⏮</button>
+    <button class="btn-ctrl btn-sm" onclick="toggleShuffle()" id="btn-shuffle">🔀</button>
+    <button class="btn-ctrl btn-play" onclick="togglePlay()" id="btn-play">▶</button>
+    <button class="btn-ctrl btn-sm" onclick="toggleRepeat()" id="btn-repeat">🔁</button>
+    <button class="btn-ctrl btn-sm" onclick="next()">⏭</button>
+  </div>
+
+  <!-- Volume -->
+  <div class="volume-section">
+    <span class="vol-icon">🔈</span>
+    <input type="range" min="0" max="100" value="70" id="vol-slider"
+      oninput="setVolume(this.value); document.getElementById('vol-val').textContent=this.value">
+    <span class="vol-val" id="vol-val">70</span>
+  </div>
+
+  <!-- Format pills -->
+  <div class="bottom-row">
+    <span class="pill active" id="fmt-pill">WAV</span>
+    <span class="pill">24bit</span>
+    <span class="pill">96kHz</span>
+    <span class="pill">Hi-Res</span>
+  </div>
+</div>
+
+<script>
+const API = 'http://192.168.0.22:8095/api';
+let state = { playing: false, elapsed: 0, duration: 0 };
+let progressTimer;
+
+async function api(method, path, body) {
+  try {
+    const r = await fetch(API+path, {
+      method,
+      headers: {'Content-Type':'application/json'},
+      body: body ? JSON.stringify(body) : undefined
+    });
+    return await r.json();
+  } catch(e) { return null; }
+}
+
+function fmt(s) {
+  s = Math.floor(s||0);
+  return Math.floor(s/60)+':'+(s%60).toString().padStart(2,'0');
+}
+
+function updateUI(s) {
+  if (!s) return;
+  state.playing = s.state === 'play';
+  state.elapsed = parseFloat(s.elapsed)||0;
+  state.duration = parseFloat(s.duration)||0;
+  document.getElementById('title').textContent = s.title || '—';
+  document.getElementById('artist').textContent = s.artist || '—';
+  document.getElementById('btn-play').textContent = state.playing ? '⏸' : '▶';
+  document.getElementById('vol-slider').value = s.volume||70;
+  document.getElementById('vol-val').textContent = s.volume||70;
+  const ext = (s.file||'').split('.').pop().toUpperCase();
+  document.getElementById('fmt-pill').textContent = ext||'—';
+  document.getElementById('source-label').textContent = 'MPD · '+(ext||'—');
+  updateProg();
+}
+
+function updateProg() {
+  const pct = state.duration>0 ? (state.elapsed/state.duration*100) : 0;
+  document.getElementById('progress').style.width = Math.min(pct,100)+'%';
+  document.getElementById('cur-time').textContent = fmt(state.elapsed);
+  document.getElementById('tot-time').textContent = fmt(state.duration);
+}
+
+async function refresh() { updateUI(await api('GET','/status')); }
+async function togglePlay() {
+  if (state.playing) await api('POST','/pause'); else await api('POST','/play');
+  setTimeout(refresh, 200);
+}
+async function next() { await api('POST','/next'); setTimeout(refresh,300); }
+async function prev() { await api('POST','/prev'); setTimeout(refresh,300); }
+async function setVolume(v) { await api('POST','/volume',{volume:parseInt(v)}); }
+async function toggleRepeat() {
+  const r = await api('POST','/repeat');
+  if(r) document.getElementById('btn-repeat').style.color = r.repeat?'#a855f7':'';
+}
+async function toggleShuffle() {
+  const r = await api('POST','/random');
+  if(r) document.getElementById('btn-shuffle').style.color = r.random?'#a855f7':'';
+}
+function seekClick(e) {
+  if (!state.duration) return;
+  const rect = e.currentTarget.getBoundingClientRect();
+  const pos = ((e.clientX-rect.left)/rect.width)*state.duration;
+  state.elapsed = pos; updateProg();
+  api('POST','/seek',{position:pos});
+}
+
+// tick
+setInterval(()=>{ if(state.playing&&state.duration>0){ state.elapsed=Math.min(state.elapsed+1,state.duration); updateProg(); }},1000);
+setInterval(refresh, 5000);
+refresh();
+</script>
+</body>
+</html>
