@@ -1,0 +1,136 @@
+VV AUDIO LAB VANADIUM OS LICENSE
+Version 1.0, March 2026
+
+Copyright (C) 2026 VV Audio Lab. All rights reserved.
+Developed by Vincent, VV Audio Lab (vvaudiolab.com)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PREAMBLE
+
+Vanadium OS is an open-source music playback operating system
+developed by VV Audio Lab. This license grants you the freedom
+to use, study, and modify the software, while protecting the
+VV Audio Lab brand identity.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. GRANT OF RIGHTS
+
+   Subject to the terms of this License, VV Audio Lab grants
+   you a worldwide, royalty-free, non-exclusive license to:
+
+   a) Use Vanadium OS for personal and non-commercial purposes
+   b) Study and examine the source code
+   c) Modify the source code for personal use
+   d) Distribute verbatim or modified copies, subject to
+      Section 2 (Brand Protection Requirements)
+
+2. BRAND PROTECTION REQUIREMENTS
+
+   Any distribution of Vanadium OS, whether verbatim or
+   modified, MUST comply with ALL of the following:
+
+   a) LOGO RETENTION
+      The VV Audio Lab and VVAI logos, as provided in the
+      /assets/logo/ directory, must be retained in all
+      distributed versions. Logos must not be:
+      - Removed or hidden
+      - Replaced with other logos or graphics
+      - Altered, distorted, or recolored
+      - Reduced in size below the minimum specified dimensions
+
+   b) BRAND ATTRIBUTION
+      All distributed versions must display, in a prominent
+      location visible during normal use:
+      "Powered by Vanadium OS — VV Audio Lab"
+
+   c) COPYRIGHT NOTICE
+      All source files must retain the original copyright
+      notice:
+      "Copyright (C) 2026 VV Audio Lab. All rights reserved."
+
+   d) ABOUT SCREEN
+      The About / Credits screen must include:
+      - "Vanadium OS by VV Audio Lab"
+      - A link or reference to vvaudiolab.com
+      - The original version number and release date
+
+3. PERMITTED MODIFICATIONS
+
+   You are free to modify the following without restriction:
+
+   a) Playback engine settings (MPD, Roon Bridge, Diretta)
+   b) Audio output configuration
+   c) Network and system settings
+   d) UI color themes and visual styles
+      (provided brand elements in Section 2 are retained)
+   e) Additional features and plugins
+   f) Language and localization
+
+4. COMMERCIAL USE RESTRICTIONS
+
+   Commercial use of Vanadium OS requires a separate written
+   license from VV Audio Lab. "Commercial use" includes but
+   is not limited to:
+
+   a) Selling hardware pre-loaded with Vanadium OS
+   b) Offering Vanadium OS as part of a paid service
+   c) Using Vanadium OS in products sold to end customers
+   d) Sublicensing Vanadium OS to third parties
+
+   To obtain a commercial license, contact:
+   VV Audio Lab — vvaudiolab.com
+
+5. CONTRIBUTIONS
+
+   Contributions to Vanadium OS are welcome. By submitting
+   a contribution, you agree that:
+
+   a) Your contribution will be licensed under this License
+   b) VV Audio Lab retains the right to include, modify,
+      or reject contributions
+   c) You have the legal right to make the contribution
+
+6. DISCLAIMER OF WARRANTY
+
+   Vanadium OS is provided "AS IS", without warranty of any
+   kind, express or implied, including but not limited to the
+   warranties of merchantability, fitness for a particular
+   purpose, and non-infringement.
+
+   In no event shall VV Audio Lab or its contributors be
+   liable for any claim, damages, or other liability arising
+   from the use of this software.
+
+7. TERMINATION
+
+   Your rights under this License will terminate automatically
+   if you fail to comply with any of its terms, particularly
+   the Brand Protection Requirements in Section 2.
+
+   Upon termination, you must cease all distribution of
+   Vanadium OS and destroy all copies in your possession.
+
+8. GOVERNING LAW
+
+   This License shall be governed by and construed in
+   accordance with applicable international copyright law.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SUMMARY (non-binding)
+
+  ✅ Free to use personally
+  ✅ Free to study and modify
+  ✅ Free to distribute (with VV Audio Lab branding intact)
+  ✅ Free to add features and plugins
+  ❌ Cannot remove or modify VV Audio Lab / VVAI logos
+  ❌ Cannot claim as your own creation
+  ❌ Cannot sell commercially without written permission
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+For licensing inquiries:
+VV Audio Lab
+https://vvaudiolab.com
