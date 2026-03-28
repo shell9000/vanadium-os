@@ -26,6 +26,27 @@ app.add_middleware(
 )
 
 MPD_HOST = "localhost"
+PROXY_HOST = "192.168.0.1"
+PROXY_PORT = 7891
+PROXY_USER = "Clash"
+PROXY_PASS = "OUsqx5pp"
+
+def fetch_via_proxy(url, headers=None, timeout=8, ua="VanadiumOS/1.0"):
+    """Fetch URL via curl, clearing proxy env vars for direct access"""
+    import subprocess, os
+    env = os.environ.copy()
+    for k in ['http_proxy','https_proxy','HTTP_PROXY','HTTPS_PROXY','ALL_PROXY','all_proxy']:
+        env.pop(k, None)
+    cmd = ["curl", "-s", "-L", "-m", str(timeout), "-A", ua]
+    if headers:
+        for k, v in headers.items():
+            cmd += ["-H", f"{k}: {v}"]
+    cmd.append(url)
+    result = subprocess.run(cmd, capture_output=True, timeout=timeout+2, env=env)
+    if result.returncode == 0 and result.stdout.strip():
+        return result.stdout.strip()
+    raise Exception(f"curl failed: rc={result.returncode} len={len(result.stdout)}")
+
 MUSIC_DIR = Path("/root/music")
 MPD_PORT = 6600
 FRONTEND = Path(__file__).parent.parent / "frontend"
@@ -463,4 +484,383 @@ async def toggle_samba_path(data: dict):
     samba = next((p["samba"] for p in paths if p["path"] == path), False)
     return {"ok": True, "samba": samba}
 
+
+@app.get("/api/artists")
+async def get_artists():
+    try:
+        c = get_mpd()
+        # Get all artists from MPD (fast)
+        raw = c.list("artist")
+        # Also albumartist
+        try:
+            raw2 = c.list("albumartist")
+        except:
+            raw2 = []
+        c.disconnect()
+
+        import re
+        artist_map = {}
+        for item in list(raw) + list(raw2):
+            a = item.get("artist", item.get("albumartist", "")) if isinstance(item, dict) else str(item)
+            a = a.strip()
+            if not a: continue
+            # Filter: reject if 3+ consecutive ? (broken encoding)
+            if re.search(r'\?{3,}', a): continue
+            # Filter: reject high ratio of non-CJK/Latin chars
+            valid = sum(1 for c in a if (
+                0x0020 <= ord(c) <= 0x024F or
+                0x4E00 <= ord(c) <= 0x9FFF or
+                0x3040 <= ord(c) <= 0x30FF or
+                0xAC00 <= ord(c) <= 0xD7AF or
+                0xFF00 <= ord(c) <= 0xFFEF or
+                0x0370 <= ord(c) <= 0x03FF
+            ))
+            if valid / max(len(a), 1) < 0.6: continue
+            artist_map[a] = artist_map.get(a, 0) + 1
+
+        result = [{"name": a, "count": v} for a, v in sorted(artist_map.items(), key=lambda x: x[0].lower())]
+        return {"ok": True, "artists": result}
+    except Exception as e:
+        return {"ok": False, "artists": [], "error": str(e)}
+
+@app.get("/api/artist-albums")
+async def get_artist_albums(artist: str = ""):
+    try:
+        c = get_mpd()
+        # Use find (exact) first, fallback to search (slower)
+        try:
+            results = c.find("artist", artist)
+            if not results:
+                results = c.find("albumartist", artist)
+        except:
+            results = c.search("artist", artist)
+        c.disconnect()
+        # Group by parent directory (album level)
+        dirs_seen = set()
+        albums = []
+        for item in results:
+            f = item.get("file", "")
+            parts = f.split("/")
+            # Use parent dir of file as album dir
+            if len(parts) >= 2:
+                album_dir = "/".join(parts[:-1])
+            else:
+                album_dir = parts[0] if parts else ""
+            if album_dir and album_dir not in dirs_seen:
+                dirs_seen.add(album_dir)
+                albums.append({"directory": album_dir})
+        albums.sort(key=lambda x: x["directory"].lower())
+        return {"ok": True, "albums": albums}
+    except Exception as e:
+        return {"ok": False, "albums": [], "error": str(e)}
+
+AUDIO_CONFIG_FILE = Path('/etc/vanadium/audio-config.json')
+
+def load_audio_config():
+    AUDIO_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    if AUDIO_CONFIG_FILE.exists():
+        try:
+            return json.loads(AUDIO_CONFIG_FILE.read_text())
+        except: pass
+    return {"mixer": False, "resample": False, "dop": False, "cpu": False, "buffer": "8192"}
+
+def save_audio_config(cfg):
+    AUDIO_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    AUDIO_CONFIG_FILE.write_text(json.dumps(cfg, indent=2))
+
+def apply_audio_config(cfg):
+    import subprocess
+    # Read current mpd.conf
+    mpd_conf = Path("/etc/mpd.conf").read_text()
+    # Update audio_buffer_size
+    import re
+    buf = cfg.get("buffer", "8192")
+    mpd_conf = re.sub(r'audio_buffer_size "[^"]+"', f'audio_buffer_size "{buf}"', mpd_conf)
+    if 'audio_buffer_size' not in mpd_conf:
+        mpd_conf += f'\naudio_buffer_size "{buf}"\n'
+    # Update mixer_type in audio_output block
+    mixer_val = 'software' if cfg.get('mixer') else 'none'
+    mpd_conf = re.sub(r'mixer_type "[^"]+"', f'mixer_type "{mixer_val}"', mpd_conf)
+    # Update dop
+    dop_val = 'yes' if cfg.get('dop') else 'no'
+    mpd_conf = re.sub(r'dop "[^"]+"', f'dop "{dop_val}"', mpd_conf)
+    # Write back
+    Path("/etc/mpd.conf").write_text(mpd_conf)
+    # CPU governor
+    if cfg.get('cpu'):
+        for f in Path('/sys/devices/system/cpu').glob('cpu[0-9]*/cpufreq/scaling_governor'):
+            try: f.write_text('performance')
+            except: pass
+    else:
+        for f in Path('/sys/devices/system/cpu').glob('cpu[0-9]*/cpufreq/scaling_governor'):
+            try: f.write_text('powersave')
+            except: pass
+    # Restart MPD
+    subprocess.run(['pkill', '-x', 'mpd'], capture_output=True)
+    import time; time.sleep(1)
+    subprocess.run(['systemctl', 'start', 'mpd'], capture_output=True)
+    return True
+
+@app.get("/api/audio-config")
+async def get_audio_config():
+    return {"ok": True, "config": load_audio_config()}
+
+@app.post("/api/audio-config")
+async def set_audio_config(data: dict):
+    key = data.get("key")
+    val = data.get("value")
+    cfg = load_audio_config()
+    if key in cfg:
+        cfg[key] = val
+        save_audio_config(cfg)
+        apply_audio_config(cfg)
+        return {"ok": True, "restart": True}
+    raise HTTPException(status_code=400, detail="Unknown key")
+
+import urllib.request
+import urllib.parse
+
+ARTIST_IMAGE_CACHE = {}  # in-memory cache
+ARTIST_CACHE_FILE = Path("/etc/vanadium/artist-image-cache.json")
+
+def load_artist_cache():
+    global ARTIST_IMAGE_CACHE
+    if ARTIST_CACHE_FILE.exists():
+        try:
+            ARTIST_IMAGE_CACHE = json.loads(ARTIST_CACHE_FILE.read_text())
+        except: pass
+
+def save_artist_cache():
+    ARTIST_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    ARTIST_CACHE_FILE.write_text(json.dumps(ARTIST_IMAGE_CACHE, ensure_ascii=False))
+
+load_artist_cache()
+
+@app.get("/api/artist-image")
+async def get_artist_image(name: str = ""):
+    if not name:
+        raise HTTPException(status_code=400, detail="name required")
+    if name in ARTIST_IMAGE_CACHE:
+        return {"ok": True, "url": ARTIST_IMAGE_CACHE[name]}
+    HEADERS = {"User-Agent": "VanadiumOS/1.0 +https://vvaudiolab.com"}
+    try:
+        import time
+        img = None
+        q = urllib.parse.quote(name)
+
+        # Step 1: iTunes Search API (best coverage for pop/Canto/Classical)
+        try:
+            itunes_url = f"https://itunes.apple.com/search?term={q}&entity=song&limit=1"
+            raw = fetch_via_proxy(itunes_url, timeout=8)
+            idata = json.loads(raw.strip())
+            for r2 in idata.get("results", []):
+                img = r2.get("artworkUrl100", "").replace("100x100bb", "600x600bb").replace("100x100", "600x600")
+                if img: break
+        except: pass
+
+        if img:
+            ARTIST_IMAGE_CACHE[name] = img
+            save_artist_cache()
+            return {"ok": True, "url": img}
+
+        # Step 2: NetEase Music API via local NeteaseCloudMusicApi (port 3001)
+        try:
+            ne_url = f"http://127.0.0.1:3001/search?keywords={q}&type=100&limit=3"
+            raw_ne = fetch_via_proxy(ne_url, timeout=5)
+            if raw_ne:
+                ne_data = json.loads(raw_ne)
+                artists_ne = ne_data.get("result",{}).get("artists",[])
+                for a in artists_ne:
+                    pic = a.get("picUrl","")
+                    if pic and "default" not in pic:
+                        img = pic.replace("http://", "https://")
+                        break
+        except Exception as _nee:
+            pass
+
+        if img:
+            ARTIST_IMAGE_CACHE[name] = img
+            save_artist_cache()
+            return {"ok": True, "url": img}
+
+        # Step 2b: QQ Music API
+        try:
+            qq_url = f"https://c.y.qq.com/soso/fcgi-bin/search_for_qq_cp?w={q}&p=1&n=1&format=json&inCharset=utf8&outCharset=utf-8&platform=yqq&needNewCode=0&catZhida=1&zhidaqu=1&t=0&aggr=0&lossless=0&sem=1&cid=205360838&new_json=1"
+            raw_qq = fetch_via_proxy(qq_url, timeout=8)
+            if raw_qq:
+                qq_data = json.loads(raw_qq)
+                singer_list = qq_data.get("data",{}).get("zhida",{}).get("singerlist",[])
+                if not singer_list:
+                    singer_list = qq_data.get("data",{}).get("singer",{}).get("singerlist",[])
+                for s in singer_list:
+                    singer_mid = s.get("singermid","")
+                    if singer_mid:
+                        img = f"https://y.gtimg.cn/music/photo_new/T001R300x300M000{singer_mid}.jpg"
+                        break
+        except Exception as _qqe:
+            pass
+
+        if img:
+            ARTIST_IMAGE_CACHE[name] = img
+            save_artist_cache()
+            return {"ok": True, "url": img}
+
+        # Step 2b: MusicBrainz + Wikidata fallback
+        try:
+            mb_url = f"https://musicbrainz.org/ws/2/artist/?query={q}&fmt=json&limit=1"
+            raw_mb = fetch_via_proxy(mb_url, timeout=8)
+            mb_data = json.loads(raw_mb)
+            artists_mb = mb_data.get("artists", [])
+            if artists_mb:
+                mbid = artists_mb[0].get("id", "")
+                if mbid:
+                    # Get relations for Wikidata ID
+                    rel_url = f"https://musicbrainz.org/ws/2/artist/{mbid}?inc=url-rels&fmt=json"
+                    raw_rel = fetch_via_proxy(rel_url, timeout=8)
+                    rel_data = json.loads(raw_rel)
+                    wd_id = None
+                    for rel in rel_data.get("relations", []):
+                        if rel.get("type") == "wikidata":
+                            wd_url = rel.get("url", {}).get("resource", "")
+                            wd_id = wd_url.split("/")[-1] if wd_url else None
+                            break
+                    if wd_id:
+                        wd_api = f"https://www.wikidata.org/w/api.php?action=wbgetentities&ids={wd_id}&props=claims&format=json"
+                        raw_wd = fetch_via_proxy(wd_api, timeout=8)
+                        wd_data = json.loads(raw_wd)
+                        claims = wd_data.get("entities", {}).get(wd_id, {}).get("claims", {})
+                        p18 = claims.get("P18", [])
+                        if p18:
+                            fname = p18[0].get("mainsnak", {}).get("datavalue", {}).get("value", "")
+                            if fname:
+                                fname = fname.replace(" ", "_")
+                                img = f"https://commons.wikimedia.org/wiki/Special:FilePath/{urllib.parse.quote(fname)}"
+        except Exception as _mbe:
+            print(f"[mb-fallback] {_mbe}")
+
+        if img:
+            ARTIST_IMAGE_CACHE[name] = img
+            save_artist_cache()
+            return {"ok": True, "url": img}
+
+        # Step 4: Discogs fallback
+        time.sleep(0.3)
+        try:
+            search_url = f"https://api.discogs.com/database/search?q={q}&type=artist&per_page=3"
+            req2 = urllib.request.Request(search_url, headers=HEADERS)
+            with urllib.request.urlopen(req2, timeout=6) as resp2:
+                data = json.loads(resp2.read())
+            for r in data.get("results", []):
+                for k in ["cover_image", "thumb"]:
+                    v = r.get(k, "")
+                    if v and "spacer" not in v:
+                        img = v
+                        break
+                if img: break
+                resource_url = r.get("resource_url", "")
+                if resource_url:
+                    try:
+                        req3 = urllib.request.Request(resource_url, headers=HEADERS)
+                        with urllib.request.urlopen(req3, timeout=6) as resp3:
+                            detail = json.loads(resp3.read())
+                        for im in detail.get("images", []):
+                            uri = im.get("uri") or im.get("uri150", "")
+                            if uri and "spacer" not in uri:
+                                img = uri
+                                break
+                    except: pass
+                if img: break
+        except: pass
+        ARTIST_IMAGE_CACHE[name] = ""
+        save_artist_cache()
+        return {"ok": False, "url": ""}
+    except Exception as e:
+        return {"ok": False, "url": "", "error": str(e)}
+
+from fastapi.responses import Response as FastAPIResponse
+
+@app.get("/api/artist-image-proxy")
+async def artist_image_proxy(name: str = ""):
+    """Proxy artist image through backend to avoid CORS/GFW issues"""
+    if not name:
+        raise HTTPException(status_code=400, detail="name required")
+    # Get URL first
+    r = await get_artist_image(name)
+    url = r.get("url", "") if isinstance(r, dict) else ""
+    if not url:
+        raise HTTPException(status_code=404, detail="No image found")
+    try:
+        HEADERS = {"User-Agent": "VanadiumOS/1.0 +https://vvaudiolab.com"}
+        req = urllib.request.Request(url, headers=HEADERS)
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            data = resp.read()
+            ct = resp.headers.get("Content-Type", "image/jpeg")
+        return FastAPIResponse(content=data, media_type=ct)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+import asyncio
+import threading
+
+def prefetch_artist_images():
+    """Background thread: prefetch all artist images on startup"""
+    import time
+    time.sleep(10)  # Wait for server to fully start
+    try:
+        c = get_mpd()
+        raw = c.list("artist")
+        try:
+            raw2 = c.list("albumartist")
+        except:
+            raw2 = []
+        c.disconnect()
+        import re
+        artists = set()
+        for item in list(raw) + list(raw2):
+            a = item.get("artist", item.get("albumartist", "")) if isinstance(item, dict) else str(item)
+            a = a.strip()
+            if not a: continue
+            if re.search(r'\?{3,}', a): continue
+            valid = sum(1 for ch in a if (
+                0x0020 <= ord(ch) <= 0x024F or
+                0x4E00 <= ord(ch) <= 0x9FFF or
+                0x3040 <= ord(ch) <= 0x30FF or
+                0xAC00 <= ord(ch) <= 0xD7AF
+            ))
+            if valid / max(len(a), 1) < 0.6: continue
+            artists.add(a)
+        print(f"[prefetch] Starting artist image prefetch for {len(artists)} artists")
+        fetched = 0
+        for name in sorted(artists):
+            if name in ARTIST_IMAGE_CACHE and ARTIST_IMAGE_CACHE[name]:
+                continue  # already cached
+            try:
+                import urllib.parse
+                q = urllib.parse.quote(name)
+                # Use fetch_via_proxy directly (curl subprocess with socks5)
+                itunes_url = f"https://itunes.apple.com/search?term={q}&entity=song&limit=1"
+                raw = fetch_via_proxy(itunes_url, timeout=10)
+                idata = json.loads(raw.strip())
+                img = None
+                for r2 in idata.get("results", []):
+                    img = r2.get("artworkUrl100", "").replace("100x100bb", "600x600bb").replace("100x100", "600x600")
+                    if img: break
+                ARTIST_IMAGE_CACHE[name] = img or ""
+                if img:
+                    fetched += 1
+                    print(f"[prefetch] {name}: OK")
+                save_artist_cache()
+                time.sleep(0.5)
+            except Exception as e:
+                print(f"[prefetch] {name}: ERROR {e}")
+                ARTIST_IMAGE_CACHE[name] = ""
+                save_artist_cache()
+                time.sleep(0.5)
+        print(f"[prefetch] Done: {fetched}/{len(artists)} images fetched")
+    except Exception as e:
+        print(f"[prefetch] Error: {e}")
+
+# Start prefetch in background thread
+_prefetch_thread = threading.Thread(target=prefetch_artist_images, daemon=True)
+_prefetch_thread.start()
 uvicorn.run(app, host="0.0.0.0", port=8080)
